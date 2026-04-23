@@ -10,10 +10,24 @@ from controller import Robot
 
 TIME_STEP = 32
 
+# Fall thresholds in radians (after offset correction)
+FALL_FWD_THRESHOLD  =  0.5
+FALL_BWD_THRESHOLD  = -0.5
+FALL_SIDE_THRESHOLD =  0.5
+
+
+class State:
+    STANDING    = "STANDING"
+    FALLEN_FWD  = "FALLEN_FORWARD"
+    FALLEN_BWD  = "FALLEN_BACKWARD"
+    FALLEN_SIDE = "FALLEN_SIDEWAYS"
+
+
 class BalanceAndDetectionController:
 
     def __init__(self):
         self.robot = Robot()
+        self.state = State.STANDING
 
         # Offsets start at zero; _calibrate() will overwrite them at runtime
         self.roll_offset  = 0.0
@@ -60,6 +74,17 @@ class BalanceAndDetectionController:
         yaw   = rpy[2]
         return roll, pitch, yaw
 
+    # ── State classification ──────────────────────────────────────────────────
+
+    def _classify(self, roll, pitch):
+        if abs(roll) > FALL_SIDE_THRESHOLD:
+            return State.FALLEN_SIDE
+        if pitch > FALL_FWD_THRESHOLD:
+            return State.FALLEN_FWD
+        if pitch < FALL_BWD_THRESHOLD:
+            return State.FALLEN_BWD
+        return State.STANDING
+
     # ── Main loop ─────────────────────────────────────────────────────────────
 
     def run(self):
@@ -71,8 +96,10 @@ class BalanceAndDetectionController:
         prev_time = self.robot.getTime()
 
         print("=" * 52)
-        print("[INFO] Sensors live — IMU offset correction active")
-        print("[INFO] Reading roll, pitch, yaw every 2 seconds")
+        print("[INFO] State detection active")
+        print(f"[INFO] Thresholds: fwd={FALL_FWD_THRESHOLD} "
+              f"bwd={FALL_BWD_THRESHOLD} "
+              f"side=±{FALL_SIDE_THRESHOLD}")
         print("=" * 52)
 
         while self.robot.step(TIME_STEP) != -1:
@@ -81,13 +108,26 @@ class BalanceAndDetectionController:
             prev_time = t
 
             roll, pitch, yaw = self._get_orientation()
+            new_state = self._classify(roll, pitch)
+
+            # Detect and log state changes
+            if new_state != self.state:
+                print(f"\n{'='*52}")
+                print(f"[STATE CHANGE] {self.state} --> {new_state}")
+                print(f"  pitch = {pitch:+.4f} rad")
+                print(f"  roll  = {roll:+.4f} rad")
+                print(f"  yaw   = {yaw:+.4f} rad")  # logged for diagnostics
+                if new_state != State.STANDING:
+                    print(f"  !! Fall detected: {new_state} !!")
+                print(f"{'='*52}\n")
+                self.state = new_state
 
             # Print live IMU every 2 seconds
             if int(t * 10) % 20 == 0:
                 print(f"[IMU] t={t:.1f}s | "
                       f"pitch={pitch:+.3f} | "
                       f"roll={roll:+.3f} | "
-                      f"yaw={yaw:+.3f}")
+                      f"state={self.state}")
 
 
 # Entry point
