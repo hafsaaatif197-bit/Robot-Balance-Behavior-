@@ -15,6 +15,26 @@ FALL_FWD_THRESHOLD  =  0.5
 FALL_BWD_THRESHOLD  = -0.5
 FALL_SIDE_THRESHOLD =  0.5
 
+# NAO joint limits (prevents console warnings)
+MOTOR_LIMITS = {
+    'RElbowRoll':     ( 0.0,     1.5446),
+    'LElbowRoll':     (-1.5446,  0.0),
+    'RShoulderRoll':  (-1.3265,  0.3142),
+    'LShoulderRoll':  (-0.3142,  1.3265),
+    'LHipPitch':      (-1.7308,  0.4848),
+    'RHipPitch':      (-1.7308,  0.4848),
+    'LKneePitch':     (-0.0923,  2.1125),
+    'RKneePitch':     (-0.0923,  2.1125),
+    'LAnklePitch':    (-1.1868,  0.9227),
+    'RAnklePitch':    (-1.1868,  0.9227),
+    'LAnkleRoll':     (-0.7854,  0.7854),
+    'RAnkleRoll':     (-0.7854,  0.7854),
+    'LHipRoll':       (-0.7854,  0.7854),
+    'RHipRoll':       (-0.7854,  0.7854),
+    'LShoulderPitch': (-2.0857,  2.0857),
+    'RShoulderPitch': (-2.0857,  2.0857),
+}
+
 
 class State:
     STANDING    = "STANDING"
@@ -34,6 +54,8 @@ class BalanceAndDetectionController:
         self.pitch_offset = 0.0
 
         self._init_sensors()
+        self._init_motors()
+        self._go_to_standing_pose()
 
     # ── Sensors ──────────────────────────────────────────────────────────────
 
@@ -43,6 +65,44 @@ class BalanceAndDetectionController:
         self.gyro = self.robot.getDevice('gyro')
         self.gyro.enable(TIME_STEP)
         print("[OK] Sensors enabled")
+
+    # ── Motors ───────────────────────────────────────────────────────────────
+
+    def _init_motors(self):
+        self.motors = {}
+        for name in MOTOR_LIMITS:
+            dev = self.robot.getDevice(name)
+            if dev:
+                dev.setVelocity(0.5)
+                self.motors[name] = dev
+        print(f"[OK] {len(self.motors)} motors initialised")
+
+    def _set(self, name, position):
+        """Set motor position safely within joint limits."""
+        if name not in self.motors:
+            return
+        lo, hi = MOTOR_LIMITS[name]
+        position = max(lo, min(hi, position))
+        self.motors[name].setPosition(position)
+
+    # ── Standing pose ─────────────────────────────────────────────────────────
+
+    def _go_to_standing_pose(self):
+        self._set('LHipPitch',      -0.45)
+        self._set('RHipPitch',      -0.45)
+        self._set('LKneePitch',      0.87)
+        self._set('RKneePitch',      0.87)
+        self._set('LAnklePitch',    -0.40)
+        self._set('RAnklePitch',    -0.40)
+        self._set('LHipRoll',        0.0)
+        self._set('RHipRoll',        0.0)
+        self._set('LAnkleRoll',      0.0)
+        self._set('RAnkleRoll',      0.0)
+        self._set('LShoulderPitch',  1.4)
+        self._set('RShoulderPitch',  1.4)
+        self._set('LShoulderRoll',   0.3)
+        self._set('RShoulderRoll',  -0.3)
+        print("[OK] Standing pose set")
 
     # ── Auto-calibration ──────────────────────────────────────────────────────
 
@@ -96,7 +156,7 @@ class BalanceAndDetectionController:
         prev_time = self.robot.getTime()
 
         print("=" * 52)
-        print("[INFO] State detection active")
+        print("[INFO] Motors initialised — standing pose active")
         print(f"[INFO] Thresholds: fwd={FALL_FWD_THRESHOLD} "
               f"bwd={FALL_BWD_THRESHOLD} "
               f"side=±{FALL_SIDE_THRESHOLD}")
