@@ -145,31 +145,61 @@ class BalanceAndDetectionController:
             return State.FALLEN_BWD
         return State.STANDING
 
+     # ── PID balance controller ────────────────────────────────────────────────
+ 
+    def _pid_balance(self, roll, pitch, dt):
+        dt = max(dt, 0.001)
+ 
+        # Read angular velocities directly from gyroscope for the D-term
+        # gyro returns [wx, wy, wz] — wy = pitch rate, wx = roll rate
+        gyro_vals = self.gyro.getValues()
+        d_pitch   = gyro_vals[1]   # angular velocity around Y axis (pitch)
+        d_roll    = gyro_vals[0]   # angular velocity around X axis (roll)
+ 
+        # Pitch correction
+        self.integral_pitch += pitch * dt
+        cp = KP * pitch + KI * self.integral_pitch + KD * d_pitch
+        cp = max(-0.35, min(0.35, cp))
+ 
+        # Roll correction
+        self.integral_roll += roll * dt
+        cr = KP * roll + KI * self.integral_roll + KD * d_roll
+        cr = max(-0.25, min(0.25, cr))
+ 
+        # Apply to ankles (primary) and hips (secondary)
+        self._set('LAnklePitch', -0.40 + (-cp))
+        self._set('RAnklePitch', -0.40 + (-cp))
+        self._set('LAnkleRoll',           -cr)
+        self._set('RAnkleRoll',           -cr)
+        self._set('LHipPitch',   -0.45 + (cp * 0.4))
+        self._set('RHipPitch',   -0.45 + (cp * 0.4))
+ 
     # ── Main loop ─────────────────────────────────────────────────────────────
-
+ 
     def run(self):
         # Auto-calibrate first — reads IMU at startup to find real zero
         self._calibrate(samples=20)
-
+ 
         # Initialize prev_time AFTER calibration so the first dt is not
         # inflated by the calibration steps
         prev_time = self.robot.getTime()
-
+ 
         print("=" * 52)
-        print("[INFO] Motors initialised — standing pose active")
+        print("[INFO] PID balance controller active")
         print(f"[INFO] Thresholds: fwd={FALL_FWD_THRESHOLD} "
               f"bwd={FALL_BWD_THRESHOLD} "
               f"side=±{FALL_SIDE_THRESHOLD}")
+        print("[INFO] Push the robot with Alt+click+drag to test")
         print("=" * 52)
-
+ 
         while self.robot.step(TIME_STEP) != -1:
             t  = self.robot.getTime()
             dt = t - prev_time
             prev_time = t
-
+ 
             roll, pitch, yaw = self._get_orientation()
             new_state = self._classify(roll, pitch)
-
+ 
             # Detect and log state changes
             if new_state != self.state:
                 print(f"\n{'='*52}")
@@ -181,15 +211,17 @@ class BalanceAndDetectionController:
                     print(f"  !! Fall detected: {new_state} !!")
                 print(f"{'='*52}\n")
                 self.state = new_state
-
+ 
+            # While standing, run PID balance to resist external pushes.
+            if self.state == State.STANDING:
+                self._pid_balance(roll, pitch, dt)
+ 
             # Print live IMU every 2 seconds
             if int(t * 10) % 20 == 0:
                 print(f"[IMU] t={t:.1f}s | "
                       f"pitch={pitch:+.3f} | "
                       f"roll={roll:+.3f} | "
                       f"state={self.state}")
-
-
 # Entry point
 controller = BalanceAndDetectionController()
 controller.run()
