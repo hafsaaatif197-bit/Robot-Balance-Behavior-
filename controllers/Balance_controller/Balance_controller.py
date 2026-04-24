@@ -194,7 +194,7 @@ class BalanceAndDetectionController:
         prev_time = self.robot.getTime()
 
         print("=" * 52)
-        print("[INFO] PID balance controller active")
+        print("[INFO] Balance & Detection Controller running!")
         print(f"[INFO] Thresholds: fwd={FALL_FWD_THRESHOLD} "
               f"bwd={FALL_BWD_THRESHOLD} "
               f"side=±{FALL_SIDE_THRESHOLD}")
