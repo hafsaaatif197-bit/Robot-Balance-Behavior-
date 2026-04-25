@@ -11,14 +11,15 @@ from controller import Robot
 TIME_STEP = 32
 
 # Fall thresholds in radians (after offset correction)
-FALL_FWD_THRESHOLD  =  0.5
-FALL_BWD_THRESHOLD  = -0.5
-FALL_SIDE_THRESHOLD =  0.5
+# Testing with tighter thresholds to catch falls earlier
+FALL_FWD_THRESHOLD  =  0.4
+FALL_BWD_THRESHOLD  = -0.4
+FALL_SIDE_THRESHOLD =  0.35
 
-# PID gains
-KP = 0.25
-KI = 0.005
-KD = 0.04
+# PID gains — testing with higher KP and KD for stronger correction
+KP = 0.35
+KI = 0.008
+KD = 0.06
 
 # NAO joint limits (prevents console warnings)
 MOTOR_LIMITS = {
@@ -166,15 +167,15 @@ class BalanceAndDetectionController:
         d_pitch   = gyro_vals[1]   # angular velocity around Y axis (pitch)
         d_roll    = gyro_vals[0]   # angular velocity around X axis (roll)
 
-        # Pitch correction
+        # Pitch correction — testing with wider clamp range
         self.integral_pitch += pitch * dt
         cp = KP * pitch + KI * self.integral_pitch + KD * d_pitch
-        cp = max(-0.35, min(0.35, cp))
+        cp = max(-0.40, min(0.40, cp))
 
-        # Roll correction
+        # Roll correction — testing with wider clamp range
         self.integral_roll += roll * dt
         cr = KP * roll + KI * self.integral_roll + KD * d_roll
-        cr = max(-0.25, min(0.25, cr))
+        cr = max(-0.30, min(0.30, cr))
 
         # Apply to ankles (primary) and hips (secondary)
         self._set('LAnklePitch', -0.40 + (-cp))
@@ -195,8 +196,9 @@ class BalanceAndDetectionController:
         prev_time = self.robot.getTime()
 
         print("=" * 52)
-        print("[INFO] Balance & Detection Controller running!")
-        print(f"[INFO] Thresholds: fwd={FALL_FWD_THRESHOLD} "
+        print("[TEST] Running with modified PID and threshold values")
+        print(f"[TEST] KP={KP}  KI={KI}  KD={KD}")
+        print(f"[TEST] Thresholds: fwd={FALL_FWD_THRESHOLD} "
               f"bwd={FALL_BWD_THRESHOLD} "
               f"side=±{FALL_SIDE_THRESHOLD}")
         print("[INFO] Push the robot with Alt+click+drag to test")
