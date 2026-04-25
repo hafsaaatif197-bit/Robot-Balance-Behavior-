@@ -159,8 +159,9 @@ class BalanceAndDetectionController:
     def _pid_balance(self, roll, pitch, dt):
         dt = max(dt, 0.001)
 
-        # Read angular velocities directly from gyroscope for the D-term
-        # gyro returns [wx, wy, wz] — wy = pitch rate, wx = roll rate
+        # gyro.getValues() returns [wx, wy, wz] in rad/s.
+        # Using it directly for the D-term is more accurate than
+        # finite-differencing the IMU angle across time steps.
         gyro_vals = self.gyro.getValues()
         d_pitch   = gyro_vals[1]   # angular velocity around Y axis (pitch)
         d_roll    = gyro_vals[0]   # angular velocity around X axis (roll)
@@ -194,7 +195,7 @@ class BalanceAndDetectionController:
         prev_time = self.robot.getTime()
 
         print("=" * 52)
-        print("[INFO] PID balance controller active")
+        print("[INFO] Balance & Detection Controller running!")
         print(f"[INFO] Thresholds: fwd={FALL_FWD_THRESHOLD} "
               f"bwd={FALL_BWD_THRESHOLD} "
               f"side=±{FALL_SIDE_THRESHOLD}")
