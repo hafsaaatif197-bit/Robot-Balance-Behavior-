@@ -236,3 +236,5 @@ class BalanceAndDetectionController:
 # Entry point
 controller = BalanceAndDetectionController()
 controller.run()
+
+
